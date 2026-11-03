@@ -118,9 +118,13 @@ jobs:
             $repo = $repo.Substring(1)
           }
 
-          $image = "ghcr.io/$owner/$repo:${{ github.sha }}"
+          $sha = "${{ github.sha }}"
+          $image = "ghcr.io/{0}/{1}:{2}" -f $owner, $repo, $sha
 
-          Write-Host "Baixando imagem: $image"
+          Write-Host "Owner: $owner"
+          Write-Host "Repository: $repo"
+          Write-Host "Imagem: $image"
+
           docker pull $image
 
           if ($LASTEXITCODE -ne 0) {
@@ -146,7 +150,9 @@ jobs:
         shell: powershell
         run: |
           kubectl apply -f k8s/namespace.yaml
-          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar namespace." }
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao aplicar namespace."
+          }
 
           kubectl get secret oficina-secret -n oficina
           if ($LASTEXITCODE -ne 0) {
@@ -154,19 +160,29 @@ jobs:
           }
 
           kubectl apply -f k8s/postgres.yaml
-          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar PostgreSQL." }
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao aplicar PostgreSQL."
+          }
 
           kubectl rollout status statefulset/postgres -n oficina --timeout=180s
-          if ($LASTEXITCODE -ne 0) { throw "PostgreSQL nao ficou pronto." }
+          if ($LASTEXITCODE -ne 0) {
+            throw "PostgreSQL nao ficou pronto."
+          }
 
           kubectl apply -f k8s/configmap.yaml
-          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar ConfigMap." }
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao aplicar ConfigMap."
+          }
 
           kubectl apply -f k8s/deployment.yaml
-          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar Deployment." }
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao aplicar Deployment."
+          }
 
           kubectl apply -f k8s/hpa.yaml
-          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar HPA." }
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao aplicar HPA."
+          }
 
       - name: Atualizar aplicação
         shell: powershell
