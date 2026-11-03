@@ -1,0 +1,54 @@
+import uuid
+
+
+def test_criar_peca(client):
+
+    codigo = f"FLT-{uuid.uuid4().hex[:8].upper()}"
+
+    response = client.post(
+        "/api/v1/pecas/",
+        json={
+            "nome": "Filtro de Óleo",
+            "descricao": "Filtro de óleo para motor",
+            "codigo": codigo,
+            "quantidade_estoque": 25,
+            "estoque_minimo": 5,
+            "valor_unitario": 45.90,
+            "unidade_id": 1,
+            "ativo": True
+        }
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["nome"] == "Filtro de Óleo"
+    assert data["descricao"] == "Filtro de óleo para motor"
+    assert data["codigo"] == codigo
+    assert data["quantidade_estoque"] == 25
+    assert data["estoque_minimo"] == 5
+    assert data["valor_unitario"] == 45.90
+    assert data["unidade_id"] == 1
+    assert data["ativo"] is True
+
+
+def test_criar_peca_unidade_inexistente(client):
+
+    codigo = f"PAS-{uuid.uuid4().hex[:8].upper()}"
+
+    response = client.post(
+        "/api/v1/pecas/",
+        json={
+            "nome": "Pastilha de Freio",
+            "descricao": "Pastilha dianteira",
+            "codigo": codigo,
+            "quantidade_estoque": 10,
+            "estoque_minimo": 2,
+            "valor_unitario": 120.00,
+            "unidade_id": 999999,
+            "ativo": True
+        }
+    )
+
+    assert response.status_code in (404, 400)

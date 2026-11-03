@@ -1,0 +1,67 @@
+import random
+import string
+
+
+def gerar_placa():
+    letras = ''.join(
+        random.choices(string.ascii_uppercase, k=3)
+    )
+
+    numeros = ''.join(
+        random.choices(string.digits, k=1)
+    )
+
+    letra = random.choice(string.ascii_uppercase)
+
+    numeros_finais = ''.join(
+        random.choices(string.digits, k=2)
+    )
+
+    return f"{letras}{numeros}{letra}{numeros_finais}"
+
+
+def test_criar_veiculo(client):
+
+    placa = gerar_placa()
+
+    response = client.post(
+        "/api/v1/veiculos/",
+        json={
+            "placa": placa,
+            "marca": "Toyota",
+            "modelo": "Corolla XEi",
+            "ano": 2022,
+            "cliente_id": 1,
+            "ativo": True
+        }
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["placa"] == placa
+    assert data["marca"] == "Toyota"
+    assert data["modelo"] == "Corolla XEi"
+    assert data["ano"] == 2022
+    assert data["cliente_id"] == 1
+    assert data["ativo"] is True
+
+
+def test_criar_veiculo_cliente_inexistente(client):
+
+    placa = gerar_placa()
+
+    response = client.post(
+        "/api/v1/veiculos/",
+        json={
+            "placa": placa,
+            "marca": "Honda",
+            "modelo": "Civic",
+            "ano": 2023,
+            "cliente_id": 999999,
+            "ativo": True
+        }
+    )
+
+    assert response.status_code in (404, 400)

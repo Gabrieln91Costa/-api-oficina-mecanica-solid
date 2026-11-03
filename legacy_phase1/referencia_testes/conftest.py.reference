@@ -1,0 +1,47 @@
+import pytest
+
+from fastapi.testclient import TestClient
+
+from main import app
+from core.database import get_session
+from core.security import get_current_user
+
+
+# ==========================================================
+# USUÁRIO DE TESTE
+# ==========================================================
+
+async def usuario_teste():
+    return {
+        "usuario": "teste",
+        "perfil": "GESTOR"
+    }
+
+
+# ==========================================================
+# CLIENT
+# ==========================================================
+
+@pytest.fixture
+def client():
+
+    # ------------------------------------------------------
+    # Desabilita autenticação real durante os testes
+    # ------------------------------------------------------
+
+    app.dependency_overrides[
+        get_current_user
+    ] = usuario_teste
+
+    # ------------------------------------------------------
+    # Cria cliente HTTP
+    # ------------------------------------------------------
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    # ------------------------------------------------------
+    # Limpa overrides
+    # ------------------------------------------------------
+
+    app.dependency_overrides.clear()

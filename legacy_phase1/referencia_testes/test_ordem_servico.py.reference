@@ -1,0 +1,67 @@
+import random
+import string
+
+
+def gerar_numero_ordem():
+    sufixo = ''.join(
+        random.choices(
+            string.digits,
+            k=6
+        )
+    )
+
+    return f"OS-TESTE-{sufixo}"
+
+
+def test_criar_ordem_servico(client):
+
+    numero_ordem = gerar_numero_ordem()
+
+    response = client.post(
+        "/api/v1/ordens-servico/",
+        json={
+            "numero_ordem": numero_ordem,
+            "unidade_id": 1,
+            "cliente_id": 1,
+            "servico_id": 1,
+            "peca_id": None,
+            "data": "2026-09-01",
+            "hora": "09:00",
+            "status": "RECEBIDA",
+            "ativo": True
+        }
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["numero_ordem"] == numero_ordem
+    assert data["unidade_id"] == 1
+    assert data["cliente_id"] == 1
+    assert data["servico_id"] == 1
+    assert data["peca_id"] is None
+    assert data["data"] == "2026-09-01"
+    assert data["hora"] == "09:00:00"
+    assert data["ativo"] is True
+
+def test_criar_ordem_servico_cliente_inexistente(client):
+
+    numero_ordem = gerar_numero_ordem()
+
+    response = client.post(
+        "/api/v1/ordens-servico/",
+        json={
+            "numero_ordem": numero_ordem,
+            "unidade_id": 1,
+            "cliente_id": 999999,
+            "servico_id": 1,
+            "peca_id": None,
+            "data": "2026-09-01",
+            "hora": "10:00",
+            "status": "RECEBIDA",
+            "ativo": True
+        }
+    )
+
+    assert response.status_code in (404, 400)

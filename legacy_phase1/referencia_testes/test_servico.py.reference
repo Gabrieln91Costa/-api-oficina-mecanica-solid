@@ -1,0 +1,58 @@
+def test_criar_servico(client):
+
+    response = client.post(
+        "/api/v1/servicos/",
+        json={
+            "nome": "Revisão Completa",
+            "descricao": (
+                "Inspeção geral do veículo, incluindo freios, "
+                "suspensão, fluidos e componentes do motor."
+            ),
+            "valor": 650.00,
+            "tempo_estimado": 180,
+            "unidade_id": 1,
+            "ativo": True
+        }
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["nome"] == "Revisão Completa"
+    assert data["descricao"] == (
+        "Inspeção geral do veículo, incluindo freios, "
+        "suspensão, fluidos e componentes do motor."
+    )
+    assert data["valor"] == 650.00
+    assert data["tempo_estimado"] == 180
+    assert data["unidade_id"] == 1
+    assert data["ativo"] is True
+
+
+def test_listar_servicos(client):
+
+    response = client.get(
+        "/api/v1/servicos/"
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert isinstance(data, list)
+
+
+
+def test_listar_servicos(client):
+
+    response = client.get(
+        "/api/v1/servicos/"
+    )
+
+    assert response.status_code == 200
+
+    assert isinstance(
+        response.json(),
+        list
+    )

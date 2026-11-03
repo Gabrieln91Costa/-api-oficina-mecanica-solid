@@ -1,0 +1,111 @@
+import random
+
+
+def test_criar_orcamento(client):
+
+    # ------------------------------------------------------
+    # Cria uma nova OS para o teste
+    # ------------------------------------------------------
+
+    numero_ordem = (
+        f"OS-TESTE-ORCAMENTO-"
+        f"{random.randint(100000, 999999)}"
+    )
+
+    response_os = client.post(
+        "/api/v1/ordens-servico/",
+        json={
+            "numero_ordem": numero_ordem,
+            "unidade_id": 1,
+            "cliente_id": 1,
+            "servico_id": 1,
+            "peca_id": None,
+            "data": "2026-09-01",
+            "hora": "10:00",
+            "status": "RECEBIDA",
+            "ativo": True
+        }
+    )
+
+    assert response_os.status_code == 201
+
+    ordem_servico = response_os.json()
+
+    ordem_servico_id = ordem_servico["id"]
+
+    # ------------------------------------------------------
+    # Cria orçamento
+    # ------------------------------------------------------
+
+    response = client.post(
+        "/api/v1/orcamentos/",
+        json={
+            "ordem_servico_id": ordem_servico_id,
+            "valor_servicos": 650.00,
+            "valor_pecas": 45.90,
+            "desconto": 0,
+            "acrescimo": 0,
+            "valor_total": 695.90,
+            "validade": "2026-11-15",
+            "status": "AGUARDANDO_APROVACAO",
+            "observacao": (
+                "Orçamento referente à revisão "
+                "completa do veículo."
+            ),
+            "data_aprovacao": None,
+            "aprovado_por": None,
+            "ativo": True
+        }
+    )
+
+    #assert response.status_code == 201
+    assert response.status_code == 201, response.text
+
+    data = response.json()
+
+    # ------------------------------------------------------
+    # Valida dados básicos
+    # ------------------------------------------------------
+
+    assert data["ordem_servico_id"] == ordem_servico_id
+
+    assert data["status"] == "AGUARDANDO_APROVACAO"
+
+    # ------------------------------------------------------
+    # A API calcula os valores automaticamente
+    # ------------------------------------------------------
+
+    assert data["valor_servicos"] >= 0
+    assert data["valor_pecas"] >= 0
+    assert data["valor_total"] >= 0
+
+    # ------------------------------------------------------
+    # Valida consistência do cálculo
+    # ------------------------------------------------------
+
+    valor_esperado = (
+        data["valor_servicos"]
+        + data["valor_pecas"]
+        - data["desconto"]
+        + data["acrescimo"]
+    )
+
+    assert data["valor_total"] == valor_esperado
+
+
+def test_buscar_orcamento(client):
+
+    response = client.get(
+        "/api/v1/orcamentos/1"
+    )
+
+    assert response.status_code in (200, 404)
+
+
+def test_aprovar_orcamento(client):
+
+    response = client.patch(
+        "/api/v1/orcamentos/1/aprovar"
+    )
+
+    assert response.status_code in (200, 400, 404)

@@ -1,0 +1,84 @@
+import random
+
+from fastapi.testclient import TestClient
+
+from main import app
+
+
+client = TestClient(app)
+
+
+# ==========================================================
+# GERA CPF VÁLIDO ALEATÓRIO
+# ==========================================================
+
+def gerar_cpf():
+
+    numeros = [
+        random.randint(0, 9)
+        for _ in range(9)
+    ]
+
+    # Primeiro dígito
+    soma = sum(
+        numeros[i] * (10 - i)
+        for i in range(9)
+    )
+
+    resto = soma % 11
+
+    digito_1 = 0 if resto < 2 else 11 - resto
+
+    numeros.append(digito_1)
+
+    # Segundo dígito
+    soma = sum(
+        numeros[i] * (11 - i)
+        for i in range(10)
+    )
+
+    resto = soma % 11
+
+    digito_2 = 0 if resto < 2 else 11 - resto
+
+    numeros.append(digito_2)
+
+    return "".join(
+        str(numero)
+        for numero in numeros
+    )
+
+
+# ==========================================================
+# TESTE - CRIAR CLIENTE
+# ==========================================================
+
+def test_criar_cliente(client):
+
+    cpf = gerar_cpf()
+
+    response = client.post(
+        "/api/v1/clientes/",
+        json={
+            "nome": "Maria Oliveira",
+            "cpf_cnpj": cpf,
+            "telefone": "11988887777",
+            "email": "maria.oliveira@email.com",
+            "endereco": "Rua dos Pinheiros, 100",
+            "cidade": "São Paulo",
+            "estado": "SP",
+            "unidade_id": 1,
+            "ativo": True
+        }
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["nome"] == "Maria Oliveira"
+    assert data["cpf_cnpj"] == cpf
+    assert data["telefone"] == "11988887777"
+    assert data["email"] == "maria.oliveira@email.com"
+    assert data["unidade_id"] == 1
+    assert data["ativo"] is True

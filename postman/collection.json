@@ -1,0 +1,246 @@
+{
+  "info": {
+    "name": "API Oficina Mecânica - Tech Challenge Fase 2",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000/api/v1"
+    },
+    {
+      "key": "clienteId",
+      "value": "1"
+    },
+    {
+      "key": "veiculoId",
+      "value": "1"
+    },
+    {
+      "key": "servicoId",
+      "value": "1"
+    },
+    {
+      "key": "pecaId",
+      "value": "1"
+    },
+    {
+      "key": "osId",
+      "value": ""
+    },
+    {
+      "key": "orcamentoId",
+      "value": ""
+    },
+    {
+      "key": "webhookToken",
+      "value": "local-dev-token"
+    }
+  ],
+  "item": [
+    {
+      "name": "Cadastros",
+      "item": [
+        {
+          "name": "Criar cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/clientes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nome\":\"Cliente Exemplo\",\"cpf_cnpj\":\"12345678901\",\"telefone\":\"11999999999\",\"email\":\"cliente@example.com\"}"
+            }
+          }
+        },
+        {
+          "name": "Criar veículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/veiculos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"cliente_id\":{{clienteId}},\"placa\":\"ABC1D23\",\"marca\":\"Fiat\",\"modelo\":\"Argo\",\"ano\":2022}"
+            }
+          }
+        },
+        {
+          "name": "Criar serviço",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/servicos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nome\":\"Revisão\",\"valor\":\"250.00\"}"
+            }
+          }
+        },
+        {
+          "name": "Criar peça",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/pecas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nome\":\"Filtro de óleo\",\"codigo\":\"FLT-001\",\"quantidade_estoque\":20,\"valor_unitario\":\"50.00\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ordens de Serviço",
+      "item": [
+        {
+          "name": "Abrir OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ordens-servico",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"cliente_id\":{{clienteId}},\"veiculo_id\":{{veiculoId}},\"servicos\":[{\"servico_id\":{{servicoId}}}],\"pecas\":[{\"peca_id\":{{pecaId}},\"quantidade\":1}]}"
+            }
+          }
+        },
+        {
+          "name": "Listar OS operacionais",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/ordens-servico"
+          }
+        },
+        {
+          "name": "Consultar OS",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/ordens-servico/{{osId}}"
+          }
+        },
+        {
+          "name": "Consultar status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/ordens-servico/{{osId}}/status"
+          }
+        },
+        {
+          "name": "Atualizar status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ordens-servico/{{osId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"status\":\"DIAGNOSTICO\"}"
+            }
+          }
+        },
+        {
+          "name": "Criar orçamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ordens-servico/{{osId}}/orcamentos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"desconto\":\"0\",\"acrescimo\":\"0\",\"observacao\":\"Orçamento inicial\"}"
+            }
+          }
+        },
+        {
+          "name": "Excluir OS logicamente",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/ordens-servico/{{osId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orçamentos e integrações",
+      "item": [
+        {
+          "name": "Aprovar ou recusar orçamento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Token",
+                "value": "{{webhookToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/orcamentos/{{orcamentoId}}/aprovacao",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"aprovado\":true,\"ator\":\"cliente@example.com\"}"
+            }
+          }
+        },
+        {
+          "name": "Webhook atualização via e-mail",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Token",
+                "value": "{{webhookToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks/email/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"event_id\":\"evt-001\",\"ordem_servico_id\":\"{{osId}}\",\"status\":\"DIAGNOSTICO\",\"origem\":\"EMAIL\"}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
