@@ -76,7 +76,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validar ambiente local
-        shell: pwsh
+        shell: powershell
         run: |
           Write-Host "Validando Docker..."
           docker version
@@ -93,14 +93,14 @@ jobs:
           }
 
       - name: Login no GitHub Container Registry
-        shell: pwsh
+        shell: powershell
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $env:GH_TOKEN | docker login ghcr.io --username $env:GITHUB_ACTOR --password-stdin
 
       - name: Baixar imagem publicada
-        shell: pwsh
+        shell: powershell
         run: |
           $owner = "${{ github.repository_owner }}".ToLower()
           $repo = "${{ github.event.repository.name }}".ToLower()
@@ -117,12 +117,12 @@ jobs:
           "IMAGE_NAME=$image" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Carregar imagem no Kind
-        shell: pwsh
+        shell: powershell
         run: |
           kind load docker-image $env:IMAGE_NAME --name oficina-local
 
       - name: Aplicar configurações Kubernetes
-        shell: pwsh
+        shell: powershell
         run: |
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/configmap.yaml
@@ -130,13 +130,13 @@ jobs:
           kubectl apply -f k8s/hpa.yaml
 
       - name: Atualizar aplicação
-        shell: pwsh
+        shell: powershell
         run: |
           kubectl set image deployment/oficina-api api=$env:IMAGE_NAME -n oficina
           kubectl rollout status deployment/oficina-api -n oficina --timeout=180s
 
       - name: Validar deploy
-        shell: pwsh
+        shell: powershell
         run: |
           kubectl get pods -n oficina -o wide
           kubectl get services -n oficina
