@@ -43,7 +43,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Definir nome da imagem em minúsculas
         id: image
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          REPO="${REPO,,}"
+          REPO="${REPO#-}"
+          echo "image=ghcr.io/${OWNER}/${REPO}" >> "$GITHUB_OUTPUT"
       - name: Build e push
         uses: docker/build-push-action@v6
         with:
@@ -82,7 +87,11 @@ jobs:
           kubectl rollout status statefulset/postgres -n oficina --timeout=180s
       - name: Deploy da aplicação e HPA
         run: |
-          IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY,,}"
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          REPO="${REPO,,}"
+          REPO="${REPO#-}"
+          IMAGE_NAME="ghcr.io/${OWNER}/${REPO}"
           kubectl apply -f k8s/configmap.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/hpa.yaml
