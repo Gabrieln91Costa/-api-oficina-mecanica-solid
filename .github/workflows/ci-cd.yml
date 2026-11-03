@@ -36,9 +36,11 @@ jobs:
 
   build-and-publish:
     needs: quality-and-tests
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
+      packages: write
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
