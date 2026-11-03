@@ -51,7 +51,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
 
       - name: Definir nome da imagem
         id: image
@@ -106,16 +106,6 @@ jobs:
           kubectl get nodes
           if ($LASTEXITCODE -ne 0) {
             throw "Nao foi possivel acessar os nos Kubernetes."
-          }
-
-      - name: Login no GitHub Container Registry
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $env:GH_TOKEN | docker login ghcr.io --username $env:GITHUB_ACTOR --password-stdin
-          if ($LASTEXITCODE -ne 0) {
-            throw "Falha na autenticacao com GHCR."
           }
 
       - name: Baixar imagem publicada
