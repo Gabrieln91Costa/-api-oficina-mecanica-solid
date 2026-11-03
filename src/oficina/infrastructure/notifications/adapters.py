@@ -1,4 +1,5 @@
-import logging, smtplib
+import logging
+import smtplib
 from email.message import EmailMessage
 from oficina.config import get_settings
 
