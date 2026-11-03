@@ -125,10 +125,26 @@ jobs:
           Write-Host "Repository: $repo"
           Write-Host "Imagem: $image"
 
-          docker pull $image
+          $downloadOk = $false
 
-          if ($LASTEXITCODE -ne 0) {
-            throw "Falha ao baixar imagem do GHCR."
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            Write-Host "Tentativa $attempt de 3..."
+
+            docker pull $image
+
+            if ($LASTEXITCODE -eq 0) {
+              $downloadOk = $true
+              break
+            }
+
+            if ($attempt -lt 3) {
+              Write-Host "Download interrompido. Aguardando 15 segundos..."
+              Start-Sleep -Seconds 15
+            }
+          }
+
+          if (-not $downloadOk) {
+            throw "Falha ao baixar imagem do GHCR apos 3 tentativas."
           }
 
           $utf8NoBom = New-Object System.Text.UTF8Encoding $false
@@ -205,6 +221,9 @@ jobs:
 
           Write-Host "Services:"
           kubectl get services -n oficina
+
+          Write-Host "HPA:"
+          kubectl get hpa -n oficina
 
           Write-Host "Health check:"
           $response = Invoke-RestMethod http://localhost:8080/health
