@@ -36,6 +36,9 @@ jobs:
 
   build-and-publish:
     needs: quality-and-tests
+    permissions:
+      contents: read
+      packages: read
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -95,7 +98,7 @@ jobs:
       - name: Login no GitHub Container Registry
         shell: powershell
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+           GH_TOKEN: ${{ github.token }}
         run: |
           $env:GH_TOKEN | docker login ghcr.io --username $env:GITHUB_ACTOR --password-stdin
 
