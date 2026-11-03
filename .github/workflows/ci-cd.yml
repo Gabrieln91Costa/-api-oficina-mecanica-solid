@@ -1,3 +1,4 @@
+
 name: CI-CD Oficina
 
 on:
@@ -16,16 +17,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+
       - name: Instalar dependências
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+
       - name: Lint
         run: ruff check src tests
+
       - name: Testes automatizados
         run: pytest -q --cov=oficina --cov-report=term-missing
 
@@ -35,13 +40,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Definir nome da imagem em minúsculas
+
+      - name: Definir nome da imagem
         id: image
         run: |
           OWNER="${GITHUB_REPOSITORY_OWNER,,}"
@@ -49,6 +57,7 @@ jobs:
           REPO="${REPO,,}"
           REPO="${REPO#-}"
           echo "image=ghcr.io/${OWNER}/${REPO}" >> "$GITHUB_OUTPUT"
+
       - name: Build e push
         uses: docker/build-push-action@v6
         with:
@@ -60,40 +69,75 @@ jobs:
 
   deploy:
     needs: build-and-publish
-    if: github.event_name != 'pull_request' && vars.ENABLE_K8S_DEPLOY == 'true'
-    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, Windows, X64]
+
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/setup-kubectl@v4
-      - name: Configurar acesso ao cluster
+
+      - name: Validar ambiente local
+        shell: pwsh
         run: |
-          mkdir -p "$HOME/.kube"
-          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > "$HOME/.kube/config"
-      - name: Criar namespace e secrets
+          Write-Host "Validando Docker..."
+          docker version
+
+          Write-Host "Validando Kind..."
+          kind get clusters
+
+          Write-Host "Validando Kubernetes..."
+          kubectl config current-context
+          kubectl get nodes
+
+          if ((kubectl config current-context) -ne "kind-oficina-local") {
+            throw "Contexto Kubernetes incorreto!"
+          }
+
+      - name: Login no GitHub Container Registry
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $env:GH_TOKEN | docker login ghcr.io --username $env:GITHUB_ACTOR --password-stdin
+
+      - name: Baixar imagem publicada
+        shell: pwsh
+        run: |
+          $owner = "${{ github.repository_owner }}".ToLower()
+          $repo = "${{ github.event.repository.name }}".ToLower()
+
+          if ($repo.StartsWith("-")) {
+            $repo = $repo.Substring(1)
+          }
+
+          $image = "ghcr.io/$owner/$repo:${{ github.sha }}"
+
+          Write-Host "Baixando imagem: $image"
+          docker pull $image
+
+          "IMAGE_NAME=$image" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Carregar imagem no Kind
+        shell: pwsh
+        run: |
+          kind load docker-image $env:IMAGE_NAME --name oficina-local
+
+      - name: Aplicar configurações Kubernetes
+        shell: pwsh
         run: |
           kubectl apply -f k8s/namespace.yaml
-          kubectl -n oficina create secret generic oficina-secret \
-            --from-literal=DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-            --from-literal=WEBHOOK_TOKEN="${{ secrets.WEBHOOK_TOKEN }}" \
-            --from-literal=POSTGRES_DB="${{ secrets.POSTGRES_DB }}" \
-            --from-literal=POSTGRES_USER="${{ secrets.POSTGRES_USER }}" \
-            --from-literal=POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}" \
-            --from-literal=SMTP_USER="${{ secrets.SMTP_USER }}" \
-            --from-literal=SMTP_PASSWORD="${{ secrets.SMTP_PASSWORD }}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-      - name: Deploy do banco de dados
-        run: |
-          kubectl apply -f k8s/postgres.yaml
-          kubectl rollout status statefulset/postgres -n oficina --timeout=180s
-      - name: Deploy da aplicação e HPA
-        run: |
-          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
-          REPO="${GITHUB_REPOSITORY#*/}"
-          REPO="${REPO,,}"
-          REPO="${REPO#-}"
-          IMAGE_NAME="ghcr.io/${OWNER}/${REPO}"
           kubectl apply -f k8s/configmap.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/hpa.yaml
-          kubectl set image deployment/oficina-api api="$IMAGE_NAME:${{ github.sha }}" -n oficina
+
+      - name: Atualizar aplicação
+        shell: pwsh
+        run: |
+          kubectl set image deployment/oficina-api api=$env:IMAGE_NAME -n oficina
           kubectl rollout status deployment/oficina-api -n oficina --timeout=180s
+
+      - name: Validar deploy
+        shell: pwsh
+        run: |
+          kubectl get pods -n oficina -o wide
+          kubectl get services -n oficina
+          Invoke-RestMethod http://localhost:8080/health
