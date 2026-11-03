@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   quality-and-tests:
@@ -41,14 +40,14 @@ jobs:
     permissions:
       contents: read
       packages: write
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
 
-      - uses: docker/login-action@v3
+      - name: Login no GitHub Container Registry
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -76,6 +75,9 @@ jobs:
     needs: build-and-publish
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: [self-hosted, Windows, X64]
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - uses: actions/checkout@v4
@@ -85,24 +87,36 @@ jobs:
         run: |
           Write-Host "Validando Docker..."
           docker version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker nao esta funcionando."
+          }
 
           Write-Host "Validando Kind..."
           kind get clusters
+          if ($LASTEXITCODE -ne 0) {
+            throw "Kind nao esta funcionando."
+          }
 
           Write-Host "Validando Kubernetes..."
-          kubectl config current-context
-          kubectl get nodes
+          $context = kubectl config current-context
+          if ($LASTEXITCODE -ne 0 -or $context -ne "kind-oficina-local") {
+            throw "Contexto Kubernetes incorreto: $context"
+          }
 
-          if ((kubectl config current-context) -ne "kind-oficina-local") {
-            throw "Contexto Kubernetes incorreto!"
+          kubectl get nodes
+          if ($LASTEXITCODE -ne 0) {
+            throw "Nao foi possivel acessar os nos Kubernetes."
           }
 
       - name: Login no GitHub Container Registry
         shell: powershell
         env:
-           GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           $env:GH_TOKEN | docker login ghcr.io --username $env:GITHUB_ACTOR --password-stdin
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha na autenticacao com GHCR."
+          }
 
       - name: Baixar imagem publicada
         shell: powershell
@@ -119,30 +133,73 @@ jobs:
           Write-Host "Baixando imagem: $image"
           docker pull $image
 
-          "IMAGE_NAME=$image" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao baixar imagem do GHCR."
+          }
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          [System.IO.File]::AppendAllText(
+            $env:GITHUB_ENV,
+            "IMAGE_NAME=$image`n",
+            $utf8NoBom
+          )
 
       - name: Carregar imagem no Kind
         shell: powershell
         run: |
           kind load docker-image $env:IMAGE_NAME --name oficina-local
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao carregar imagem no Kind."
+          }
 
       - name: Aplicar configurações Kubernetes
         shell: powershell
         run: |
           kubectl apply -f k8s/namespace.yaml
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar namespace." }
+
+          kubectl get secret oficina-secret -n oficina
+          if ($LASTEXITCODE -ne 0) {
+            throw "Secret oficina-secret nao encontrado."
+          }
+
+          kubectl apply -f k8s/postgres.yaml
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar PostgreSQL." }
+
+          kubectl rollout status statefulset/postgres -n oficina --timeout=180s
+          if ($LASTEXITCODE -ne 0) { throw "PostgreSQL nao ficou pronto." }
+
           kubectl apply -f k8s/configmap.yaml
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar ConfigMap." }
+
           kubectl apply -f k8s/deployment.yaml
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar Deployment." }
+
           kubectl apply -f k8s/hpa.yaml
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar HPA." }
 
       - name: Atualizar aplicação
         shell: powershell
         run: |
           kubectl set image deployment/oficina-api api=$env:IMAGE_NAME -n oficina
+          if ($LASTEXITCODE -ne 0) {
+            throw "Falha ao atualizar imagem da API."
+          }
+
           kubectl rollout status deployment/oficina-api -n oficina --timeout=180s
+          if ($LASTEXITCODE -ne 0) {
+            throw "Deploy da API nao foi concluido."
+          }
 
       - name: Validar deploy
         shell: powershell
         run: |
+          Write-Host "Pods:"
           kubectl get pods -n oficina -o wide
+
+          Write-Host "Services:"
           kubectl get services -n oficina
-          Invoke-RestMethod http://localhost:8080/health
+
+          Write-Host "Health check:"
+          $response = Invoke-RestMethod http://localhost:8080/health
+          $response | ConvertTo-Json
