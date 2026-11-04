@@ -30,30 +30,88 @@ class SqlAlchemyOficinaRepository:
     def abrir_os(self, dados):
         cliente = self.session.get(ClienteModel, dados['cliente_id'])
         veiculo = self.session.get(VeiculoModel, dados['veiculo_id'])
-        if not cliente or not cliente.ativo: raise NotFoundError('Cliente não encontrado ou inativo.')
+
+        if not cliente or not cliente.ativo:
+            raise NotFoundError('Cliente não encontrado ou inativo.')
+
         if not veiculo or not veiculo.ativo or veiculo.cliente_id != cliente.id:
             raise ValidationError('Veículo inválido ou não pertence ao cliente informado.')
-        if not dados.get('servicos'): raise ValidationError('Informe ao menos um serviço.')
+
+        if not dados.get('servicos'):
+            raise ValidationError('Informe ao menos um serviço.')
+
         os_id = str(uuid4())
-        ordem = OrdemServicoModel(id=os_id, numero_ordem=f'OS-{datetime.now(timezone.utc):%Y%m%d}-{os_id[:8].upper()}',
-            cliente_id=cliente.id, veiculo_id=veiculo.id, status=StatusOS.RECEBIDA.value,
-            observacao=dados.get('observacao'))
+
+        ordem = OrdemServicoModel(
+            id=os_id,
+            numero_ordem=f'OS-{datetime.now(timezone.utc):%Y%m%d}-{os_id[:8].upper()}',
+            cliente_id=cliente.id,
+            veiculo_id=veiculo.id,
+            status=StatusOS.RECEBIDA.value,
+            observacao=dados.get('observacao')
+        )
+
         for item in dados['servicos']:
             servico = self.session.get(ServicoModel, item['servico_id'])
-            if not servico or not servico.ativo: raise NotFoundError(f"Serviço {item['servico_id']} não encontrado ou inativo.")
-            ordem.servicos.append(OrdemServicoServicoModel(servico_id=servico.id, valor_unitario=servico.valor))
+
+            if not servico or not servico.ativo:
+                raise NotFoundError(
+                    f"Serviço {item['servico_id']} não encontrado ou inativo."
+                )
+
+            ordem.servicos.append(
+                OrdemServicoServicoModel(
+                    servico_id=servico.id,
+                    valor_unitario=servico.valor
+                )
+            )
+
         for item in dados.get('pecas', []):
             peca = self.session.get(PecaModel, item['peca_id'])
             quantidade = item['quantidade']
-            if quantidade <= 0: raise ValidationError('Quantidade de peça deve ser maior que zero.')
-            if not peca or not peca.ativo: raise NotFoundError(f"Peça {item['peca_id']} não encontrada ou inativa.")
-            if peca.quantidade_estoque < quantidade: raise ConflictError(f'Estoque insuficiente para a peça {peca.nome}.')
-            ordem.pecas.append(OrdemServicoPecaModel(peca_id=peca.id, quantidade=quantidade, valor_unitario=peca.valor_unitario))
-            peca.quantidade_estoque -= quantidade
-        self.session.add(ordem)
-        self.session.add(HistoricoStatusModel(ordem_servico_id=os_id, status_anterior=None, status_novo=StatusOS.RECEBIDA.value, origem='ABERTURA'))
-        self.session.commit(); return self.buscar_os(UUID(os_id))
 
+            if quantidade <= 0:
+                raise ValidationError('Quantidade de peça deve ser maior que zero.')
+
+            if not peca or not peca.ativo:
+                raise NotFoundError(
+                    f"Peça {item['peca_id']} não encontrada ou inativa."
+                )
+
+            if peca.quantidade_estoque < quantidade:
+                raise ConflictError(
+                    f'Estoque insuficiente para a peça {peca.nome}.'
+                )
+
+            ordem.pecas.append(
+                OrdemServicoPecaModel(
+                    peca_id=peca.id,
+                    quantidade=quantidade,
+                    valor_unitario=peca.valor_unitario
+                )
+            )
+
+            peca.quantidade_estoque -= quantidade
+
+        self.session.add(ordem)
+
+        # Garante que a ordem seja inserida antes do histórico de status.
+        self.session.flush()
+
+        self.session.add(
+            HistoricoStatusModel(
+                ordem_servico_id=os_id,
+                status_anterior=None,
+                status_novo=StatusOS.RECEBIDA.value,
+                origem='ABERTURA'
+            )
+        )
+
+        self.session.commit()
+
+        return self.buscar_os(UUID(os_id))
+
+    
     def buscar_os(self, ordem_id: UUID):
         stmt = select(OrdemServicoModel).options(joinedload(OrdemServicoModel.cliente), joinedload(OrdemServicoModel.veiculo),
             joinedload(OrdemServicoModel.servicos).joinedload(OrdemServicoServicoModel.servico),
